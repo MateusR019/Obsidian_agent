@@ -1,0 +1,453 @@
+# Prompt para Claude Code — Projeto Segundo Cérebro
+
+Copia tudo abaixo da linha `═══` e cola no Claude Code. Recomendo rodar dentro de uma pasta vazia (ex: `C:\segundo-cerebro\`) com `claude` no terminal.
+
+═══════════════════════════════════════════════════════════════════
+
+# Contexto do Projeto
+
+Você vai construir um agente de IA chamado **Segundo Cérebro** que recebe mensagens via WhatsApp, interpreta a intenção, e organiza/consulta um vault Obsidian (pasta de arquivos markdown) como fonte de conhecimento pessoal e profissional do usuário.
+
+O projeto roda **100% local** em um PC Windows (i5 4ª geração, 16GB RAM) que fica ligado 24/7. O usuário acessa de qualquer lugar via WhatsApp (com túnel Cloudflare expondo o webhook) e edita/lê o vault no celular via Obsidian mobile + plugin Git.
+
+## Sobre o usuário (Mateus)
+
+- Trabalha com e-commerce no Brasil: marcas EFish, Sea Fishing Brasil, expansão US com Prime Angling, projeto pessoal Segna
+- Produtos principais: motores de popa Mercury/Hidea, caiaques, equipamentos de pesca
+- Comunica em PT-BR informal e direto
+- Jargões frequentes: DIFAL, ICMS, DAS, GMV, Simples Nacional, divisor 0.59 (1 - 0.17 margem - 0.14 taxa ML - 0.10 impostos), ML (Mercado Livre), rateio de frete, landed cost
+- Já tem experiência com Docker, Python, Next.js, Supabase
+
+## Stack Definida
+
+| Componente | Tecnologia |
+|---|---|
+| Linguagem backend | Python 3.11+ |
+| Framework | FastAPI |
+| Banco metadados | SQLite |
+| Vetor store | SQLite com extensão `sqlite-vec` |
+| Gateway WhatsApp | Evolution API (Docker container) |
+| Túnel público | Cloudflare Tunnel |
+| Vault storage | Pasta local + Git para backup/sync |
+| LLM/STT/Embeddings | **PLUGÁVEIS** via factory pattern — ver seção "Providers" |
+
+## Princípio Central: Providers Plugáveis
+
+O usuário ainda não decidiu qual API de IA vai usar. Pode ser Gemini, Groq, OpenRouter, Claude, OpenAI, DeepSeek, ou qualquer outra. O código **nunca deve chamar uma API específica diretamente**. Sempre via interface abstrata:
+
+```python
+llm = get_llm()              # retorna implementação conforme .env
+resposta = llm.generate(messages=..., tools=...)
+```
+
+Trocar de provider deve ser **apenas editar `.env`**, sem tocar em código do agente ou das tools.
+
+# Tarefa
+
+Construa o projeto completo conforme a estrutura e especificações abaixo. Implemente incrementalmente, em fases, rodando e testando a cada fase.
+
+## Estrutura de Pastas
+
+```
+./
+├── .env.example
+├── .gitignore
+├── README.md
+├── requirements.txt
+├── docker-compose.yml            # Evolution API
+├── vault/                        # vault Obsidian (pasta de trabalho)
+│   └── _SYSTEM/
+│       ├── regras.md
+│       ├── glossario.md
+│       ├── contexto_negocio.md
+│       └── templates/
+├── data/
+│   └── .gitkeep                  # data.db vai aqui (gitignored)
+├── scripts/
+│   ├── setup_initial.py
+│   ├── reindex_all.py
+│   ├── start_all.bat
+│   └── test_providers.py
+├── app/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── config.py
+│   ├── webhook/
+│   │   ├── __init__.py
+│   │   ├── routes.py
+│   │   └── parser.py
+│   ├── agent/
+│   │   ├── __init__.py
+│   │   ├── orchestrator.py
+│   │   ├── prompts.py
+│   │   └── memory.py
+│   ├── providers/
+│   │   ├── __init__.py
+│   │   ├── llm/
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py
+│   │   │   ├── gemini.py
+│   │   │   ├── groq.py
+│   │   │   ├── openrouter.py
+│   │   │   ├── claude.py
+│   │   │   ├── openai.py
+│   │   │   └── factory.py
+│   │   ├── stt/
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py
+│   │   │   ├── groq_whisper.py
+│   │   │   ├── openai_whisper.py
+│   │   │   ├── local_whisper.py
+│   │   │   └── factory.py
+│   │   └── embed/
+│   │       ├── __init__.py
+│   │       ├── base.py
+│   │       ├── gemini.py
+│   │       ├── openai.py
+│   │       ├── local_st.py
+│   │       └── factory.py
+│   ├── tools/
+│   │   ├── __init__.py
+│   │   ├── registry.py            # expõe lista de tools pro LLM
+│   │   ├── vault_create.py
+│   │   ├── vault_read.py
+│   │   ├── vault_update.py
+│   │   ├── vault_search.py
+│   │   ├── vault_list.py
+│   │   ├── daily_note.py
+│   │   └── send_message.py
+│   ├── vault/
+│   │   ├── __init__.py
+│   │   ├── manager.py
+│   │   ├── templates.py
+│   │   ├── frontmatter.py
+│   │   └── git_sync.py
+│   ├── indexer/
+│   │   ├── __init__.py
+│   │   ├── chunker.py
+│   │   ├── indexer.py
+│   │   └── search.py
+│   ├── media/
+│   │   ├── __init__.py
+│   │   ├── audio.py
+│   │   ├── image.py
+│   │   └── pdf.py
+│   ├── db/
+│   │   ├── __init__.py
+│   │   ├── connection.py
+│   │   ├── models.py
+│   │   └── migrations.py
+│   └── utils/
+│       ├── __init__.py
+│       └── logger.py
+└── tests/
+    └── __init__.py
+```
+
+## Fases de Implementação
+
+Execute **nesta ordem**, validando cada fase antes de avançar:
+
+### Fase 1 — Fundação
+1. Criar estrutura de pastas completa
+2. `requirements.txt` com dependências: `fastapi`, `uvicorn`, `pydantic`, `pydantic-settings`, `python-dotenv`, `httpx`, `sqlite-vec`, `gitpython`, `python-frontmatter`, `rank-bm25`, `pypdf`, `pillow`
+3. `.env.example` com **todas** as variáveis necessárias (LLM_PROVIDER, STT_PROVIDER, EMBEDDING_PROVIDER + API keys de cada possível provider, caminho do vault, porta, etc)
+4. `.gitignore` (Python padrão + `.env`, `data/*.db`, `vault/` se for pasta separada, etc)
+5. `app/config.py` usando `pydantic-settings` pra carregar e validar config
+6. `app/utils/logger.py` com logging estruturado (rich opcional)
+7. `app/db/models.py` e `app/db/migrations.py` — tabelas: `messages`, `sessions`, `vault_files` (metadata), `vec_chunks` (usando sqlite-vec)
+8. `docker-compose.yml` pra Evolution API (apenas esse serviço)
+9. `README.md` com instruções de setup passo a passo
+10. `scripts/setup_initial.py` que cria o vault vazio com pastas conforme seção "Estrutura do Vault" abaixo e popula `_SYSTEM/` com conteúdo inicial
+
+**Critério de sucesso da Fase 1:** `python scripts/setup_initial.py` cria o vault, banco inicializa, FastAPI sobe com `uvicorn app.main:app` e responde 200 em `/health`.
+
+### Fase 2 — Providers Plugáveis
+
+Implemente a camada de providers com interfaces abstratas. Para esta fase, **implemente os stubs de TODOS os providers listados**, mas com implementação funcional apenas de **Gemini (LLM + embedding)** e **Groq Whisper (STT)**. Outros providers devem ter `NotImplementedError` com mensagem clara. O usuário vai preencher depois.
+
+**Interface LLM (`app/providers/llm/base.py`):**
+
+```python
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any
+
+@dataclass
+class Message:
+    role: str  # "user" | "assistant" | "system" | "tool"
+    content: str | list[dict]  # texto ou multimodal
+    tool_call_id: str | None = None
+    tool_calls: list[dict] | None = None
+
+@dataclass
+class ToolDef:
+    name: str
+    description: str
+    parameters: dict  # JSON schema
+
+@dataclass
+class LLMResponse:
+    content: str | None
+    tool_calls: list[dict]  # [{"id": ..., "name": ..., "arguments": {...}}]
+    stop_reason: str
+    usage: dict
+
+class LLMProvider(ABC):
+    @abstractmethod
+    def generate(
+        self,
+        messages: list[Message],
+        tools: list[ToolDef] | None = None,
+        system: str | None = None,
+        temperature: float = 0.3,
+        max_tokens: int = 2048,
+    ) -> LLMResponse: ...
+
+    @abstractmethod
+    def supports_vision(self) -> bool: ...
+
+    @abstractmethod
+    def supports_tools(self) -> bool: ...
+```
+
+Cada provider concreto **converte internamente** do formato padrão pro formato da API dele (Gemini usa `functionDeclarations`, Claude usa `tools`, OpenAI usa `tools`, etc) e normaliza a resposta de volta pro `LLMResponse` padrão.
+
+**Interface STT (`app/providers/stt/base.py`):**
+Método `transcribe(audio_bytes: bytes, mime_type: str) -> str` retornando transcrição em PT-BR.
+
+**Interface Embedding (`app/providers/embed/base.py`):**
+Métodos `embed(texts: list[str]) -> list[list[float]]` e atributo `dimension: int`.
+
+**Factories:** leem `.env`, retornam instância configurada. Cache com `@lru_cache`.
+
+**`scripts/test_providers.py`** — roda um teste básico de cada provider configurado no `.env` e reporta status.
+
+**Critério de sucesso da Fase 2:** com `LLM_PROVIDER=gemini` e `GEMINI_API_KEY=...` no `.env`, `python scripts/test_providers.py` faz uma chamada real à API e recebe resposta. Sem chave configurada, falha com mensagem clara.
+
+### Fase 3 — Vault Manager + Indexação
+
+1. `app/vault/frontmatter.py` — lê/escreve YAML frontmatter usando `python-frontmatter`. Schema padrão: `tipo`, `area`, `criado`, `atualizado`, `fonte`, `tags`, `status`, `links_relacionados`.
+
+2. `app/vault/manager.py` — API alto-nível:
+   - `create_note(path, content, frontmatter) -> Path`
+   - `read_note(path) -> Note`
+   - `update_note(path, content=None, append=None, frontmatter_patch=None) -> Note`
+   - `list_notes(folder=None, filters=None) -> list[Note]`
+   - Valida paths (sem `../`, só dentro do vault), sanitiza nomes de arquivo
+
+3. `app/vault/templates.py` — carrega templates de `vault/_SYSTEM/templates/*.md`, aplica substituições `{{variavel}}`.
+
+4. `app/vault/git_sync.py` — usando `gitpython`: inicializa repo se não existir, `commit_and_push()` chamado após cada modificação (debounce de 30s pra agrupar edits), `pull()` antes de escritas pra evitar conflito. Se não tiver remote configurado, só faz commit local.
+
+5. `app/indexer/chunker.py` — divide nota em chunks de ~500 tokens com overlap de ~50, respeitando headers markdown como fronteiras naturais.
+
+6. `app/indexer/indexer.py`:
+   - `index_note(path)` — chunka, gera embeddings, salva em `vec_chunks` (sqlite-vec)
+   - `index_all()` — varre vault, indexa tudo (com progress bar)
+   - `reindex_modified()` — compara mtime, re-indexa só modificadas
+
+7. `app/indexer/search.py`:
+   - Busca híbrida: vetorial (sqlite-vec) + BM25 keyword (`rank-bm25`)
+   - Retorna top N chunks com score combinado (RRF — reciprocal rank fusion)
+   - Cada resultado tem: nota origem, trecho, score, link markdown
+
+8. `scripts/reindex_all.py` — reindexa tudo, útil depois de bulk import.
+
+**Critério de sucesso da Fase 3:** criar nota via `VaultManager.create_note()`, rodar `reindex_all.py`, fazer busca por keyword semântica e receber a nota de volta com score alto.
+
+### Fase 4 — Agente + Tools
+
+1. `app/tools/registry.py` — registro central de tools. Cada tool é uma função com decorator `@tool(name, description, schema)` que fica disponível pro agente.
+
+2. Implemente as tools em `app/tools/`:
+   - **`vault_create`** — cria nota, params: `folder`, `filename` (sem .md), `title`, `content`, `tipo`, `area`, `tags`, `links`
+   - **`vault_read`** — lê nota, params: `path`
+   - **`vault_update`** — edita nota, params: `path`, `mode` (append/replace/prepend), `content`, opcional `frontmatter_patch`
+   - **`vault_search`** — busca híbrida, params: `query`, `folder` (opcional), `top_k` (default 5), `filter_tipo`, `filter_area`
+   - **`vault_list`** — lista notas de uma pasta, params: `folder`, `limit`
+   - **`daily_note`** — cria/retorna daily note do dia, params: `date` (opcional, default hoje)
+   - **`send_message`** — envia mensagem de volta ao usuário via Evolution API, params: `text` (o agente pode chamar múltiplas vezes pra mandar mensagens separadas)
+
+3. `app/agent/prompts.py` — constrói system prompt dinamicamente:
+   - Identidade base ("você é o Segundo Cérebro do Mateus")
+   - Carrega `vault/_SYSTEM/regras.md`, `glossario.md`, `contexto_negocio.md` e injeta
+   - Lista tools disponíveis
+   - Diretrizes de quando perguntar vs agir (conforme regras.md)
+   - Data/hora atual
+
+4. `app/agent/memory.py` — histórico de conversa por sessão (phone number do WhatsApp = session_id), persistido no SQLite. Janela de contexto configurável (default últimas 20 mensagens).
+
+5. `app/agent/orchestrator.py` — loop principal:
+   ```
+   recebe mensagem (texto/áudio/imagem/pdf já processados)
+   → carrega histórico da sessão
+   → monta messages com system prompt
+   → chama llm.generate() com tools
+   → se tool_calls: executa tools, adiciona resultados, chama de novo (max 5 iterações)
+   → se resposta final: envia via send_message tool
+   → salva tudo no histórico
+   ```
+   Tratamento de erro: se tool falhar, devolve erro como resultado pro LLM decidir o que fazer. Se LLM falhar, mensagem genérica de erro pro usuário e log detalhado.
+
+**Critério de sucesso da Fase 4:** em teste manual, mandar "cria nota de teste falando sobre X" via endpoint de teste (sem WhatsApp ainda) e verificar que o agente cria nota no vault usando a tool certa.
+
+### Fase 5 — WhatsApp + Mídia
+
+1. `app/webhook/parser.py` — normaliza payload Evolution API em formato interno:
+   ```python
+   @dataclass
+   class IncomingMessage:
+       from_number: str
+       message_type: Literal["text", "audio", "image", "document"]
+       text: str | None
+       media_url: str | None
+       media_mime: str | None
+       timestamp: datetime
+       message_id: str
+   ```
+
+2. `app/webhook/routes.py` — endpoint `POST /webhook/whatsapp` que:
+   - Valida origem (opcional: token no header)
+   - Parseia payload
+   - **Deduplica por `message_id`** (importante — Evolution pode reenviar)
+   - **Autoriza**: só aceita mensagens do número configurado em `ALLOWED_NUMBERS` no `.env`
+   - Enfileira processamento assíncrono (background task do FastAPI basta inicialmente)
+   - Retorna 200 imediato pro Evolution
+
+3. `app/media/audio.py` — baixa áudio do Evolution, envia pro STT provider, retorna texto.
+
+4. `app/media/image.py` — baixa imagem, codifica em base64, prepara pro LLM vision (se `llm.supports_vision()`).
+
+5. `app/media/pdf.py` — extrai texto com `pypdf`, salva arquivo original em `vault/<area_inferida>/Documentos/` (o agente decide a pasta via tool).
+
+6. Integrar tudo no `orchestrator`: quando chega mensagem, pré-processa mídia antes de mandar pro LLM.
+
+7. Implementar `send_message` tool via HTTP POST na Evolution API.
+
+**Critério de sucesso da Fase 5:** com Evolution API rodando + Cloudflare Tunnel configurado + `.env` completo, mandar mensagem de texto pelo WhatsApp e receber resposta. Mandar áudio e receber transcrição+resposta. Mandar foto e receber análise.
+
+### Fase 6 — Sync, Daily, Polish
+
+1. Daily note automática na primeira interação do dia (se não existir, cria).
+2. Git auto-sync: task em background que faz commit+push a cada 5min se houver mudanças.
+3. Watcher de filesystem em `vault/` (usar `watchdog`) → re-indexa notas editadas manualmente no Obsidian.
+4. Endpoint `/admin` com dashboard simples (HTML estático + JSON endpoints) mostrando: últimas mensagens, contagem de notas por área, status de providers, erros recentes.
+5. `scripts/start_all.bat` pra Windows: sobe Docker Compose, aguarda Evolution estar saudável, inicia `uvicorn`, inicia `cloudflared` (se configurado como comando).
+
+**Critério de sucesso da Fase 6:** sistema roda ininterruptamente por 1h recebendo mensagens reais, vault é atualizado no Obsidian mobile via Git, dashboard mostra métricas.
+
+## Estrutura do Vault (usada no `setup_initial.py`)
+
+Crie essas pastas vazias (com `.gitkeep`):
+```
+00_Inbox/
+10_Daily/2026/04/
+20_Operacao/EFish/{Fornecedores,Produtos,Custos,Listagens_ML,Notas_Fiscais,Documentos}/
+20_Operacao/SeaFishing/{Fornecedores,Produtos,Custos,Listagens_ML,Notas_Fiscais,Documentos}/
+20_Operacao/Marketplaces/
+30_Prime_Angling/{Logistica_3PL,Produtos_US,Marketing,Documentos}/
+40_Segna/{Clientes,Projetos,Documentos}/
+50_Pessoal/{Saude,Financeiro,Casa_Horta,Hobbies,Estudos,Diario}/
+60_Pessoas/
+70_Conhecimento/
+80_Projetos_Ativos/
+90_Arquivo/
+_SYSTEM/templates/
+```
+
+Crie os arquivos `_SYSTEM/regras.md`, `glossario.md`, `contexto_negocio.md` populados com o conteúdo base baseado no contexto do usuário (trabalho, jargões, identidade), deixando espaço pra ele customizar depois.
+
+Templates iniciais em `_SYSTEM/templates/`:
+- `_produto.md`, `_fornecedor.md`, `_lote_custo.md`, `_daily.md`, `_pessoa.md`, `_projeto.md`, `_nota_inbox.md`
+
+Cada template com frontmatter padrão e seções sugeridas.
+
+## Convenções de Código
+
+- **Type hints obrigatórios** em todas as funções públicas
+- **Pydantic** para validação de dados externos (webhook, config)
+- **Logging estruturado** — sem `print`, sempre `logger.info/error/debug`
+- **Nunca commitar secrets** — sempre via `.env`
+- **Docstrings** nos módulos e funções públicas, em PT-BR
+- **Mensagens de erro pro usuário em PT-BR informal**, logs técnicos em EN
+- **Tratamento de erro em toda chamada de API externa** (timeout, rate limit, etc)
+- **Rate limiting** básico por phone number (max 30 msgs/min) pra evitar loop
+- **Idempotência**: operações no vault devem ser seguras pra retry
+
+## Variáveis do `.env.example`
+
+```env
+# === Geral ===
+APP_ENV=development
+LOG_LEVEL=INFO
+HOST=0.0.0.0
+PORT=8000
+
+# === Vault ===
+VAULT_PATH=./vault
+VAULT_GIT_REMOTE=                # vazio = só commit local
+VAULT_GIT_BRANCH=main
+
+# === Banco ===
+DB_PATH=./data/data.db
+
+# === Autorização WhatsApp ===
+ALLOWED_NUMBERS=5511999999999    # separado por vírgula
+WEBHOOK_SECRET=                  # opcional, valida header
+
+# === Evolution API ===
+EVOLUTION_URL=http://localhost:8080
+EVOLUTION_INSTANCE=segundo-cerebro
+EVOLUTION_API_KEY=
+
+# === Provider LLM ===
+LLM_PROVIDER=gemini              # gemini | groq | openrouter | claude | openai
+LLM_MODEL=                       # deixa vazio pra default do provider
+GEMINI_API_KEY=
+GROQ_API_KEY=
+OPENROUTER_API_KEY=
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
+
+# === Provider STT ===
+STT_PROVIDER=groq                # groq | openai | local
+STT_MODEL=
+
+# === Provider Embedding ===
+EMBEDDING_PROVIDER=gemini        # gemini | openai | local
+EMBEDDING_MODEL=
+EMBEDDING_DIMENSION=768          # ajusta conforme modelo
+
+# === Agente ===
+AGENT_MAX_TOOL_ITERATIONS=5
+AGENT_HISTORY_WINDOW=20
+AGENT_TEMPERATURE=0.3
+```
+
+## Entregáveis Finais
+
+Ao concluir todas as fases:
+
+1. Código completo e funcional conforme estrutura
+2. `README.md` com:
+   - O que é o projeto
+   - Pré-requisitos (Docker, Python, conta Cloudflare, API key escolhida)
+   - Setup passo a passo com comandos
+   - Como trocar de provider
+   - Como customizar `_SYSTEM/regras.md`
+   - Troubleshooting comum
+3. `scripts/start_all.bat` funcionando
+4. Testes mínimos em `tests/` pros componentes críticos (providers, vault manager, indexer)
+
+## Regras Importantes
+
+- **Trabalhe incrementalmente**: implemente uma fase, teste, só então avance
+- **Peça confirmação** antes de instalar dependências pesadas ou rodar comandos que alteram o sistema
+- **Commits frequentes** com mensagens descritivas em PT-BR
+- **Se algo ambíguo**, pergunte ao usuário antes de assumir
+- **Priorize clareza sobre cleverness** — código simples e legível
+- **Não invente providers ou models** — use só o que tá documentado nas APIs oficiais
+- **Se o usuário não tiver escolhido LLM ainda**, use Gemini como default funcional
+
+Comece criando a estrutura da Fase 1 e me pergunta quando estiver pronto pra validar antes da Fase 2.
