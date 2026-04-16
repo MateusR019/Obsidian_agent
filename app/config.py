@@ -35,13 +35,14 @@ class Settings(BaseSettings):
     evolution_api_key: str = ""
 
     # Provider LLM
-    llm_provider: Literal["gemini", "groq", "openrouter", "claude", "openai"] = "gemini"
+    llm_provider: Literal["gemini", "groq", "openrouter", "claude", "openai", "nvidia"] = "gemini"
     llm_model: str = ""
     gemini_api_key: str = ""
     groq_api_key: str = ""
     openrouter_api_key: str = ""
     anthropic_api_key: str = ""
     openai_api_key: str = ""
+    nvidia_api_key: str = ""
 
     # Provider STT
     stt_provider: Literal["groq", "openai", "local"] = "groq"

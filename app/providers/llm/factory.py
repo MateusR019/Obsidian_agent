@@ -30,4 +30,8 @@ def get_llm() -> LLMProvider:
         from app.providers.llm.claude import ClaudeLLM
         return ClaudeLLM(api_key=settings.anthropic_api_key, model=model)
 
+    if provider == "nvidia":
+        from app.providers.llm.nvidia import NvidiaLLM
+        return NvidiaLLM(api_key=settings.nvidia_api_key, model=model)
+
     raise ValueError(f"LLM provider desconhecido: {provider}")

@@ -71,7 +71,7 @@ def main() -> None:
 
     print("\n=== Resultado dos Providers ===")
     for name, ok in results.items():
-        status = "✓ OK" if ok else "✗ FALHOU"
+        status = "[OK]" if ok else "[FALHOU]"
         print(f"  {name:12} {status}")
 
     if not all(results.values()):
