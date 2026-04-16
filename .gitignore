@@ -36,8 +36,10 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Vault (se for pasta separada do repo)
-# vault/
+# Vault e arquivos pessoais — nunca commitar
+vault/
+Planejamento.txt
 
 # Mídia temporária
 media_cache/
+evolution-api

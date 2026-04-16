@@ -1,157 +1,189 @@
-# Segundo Cérebro
+# Second Brain Agent
 
-Agente de IA que recebe mensagens via WhatsApp, interpreta a intenção e organiza/consulta um vault Obsidian como fonte de conhecimento pessoal e profissional.
+An AI agent that receives messages via WhatsApp, understands your intent, and organizes/queries an Obsidian vault as your personal and professional knowledge base.
 
-Roda 100% local no Windows. Acesso remoto via WhatsApp + Cloudflare Tunnel.
+Runs 100% locally on a Windows PC. Access from anywhere via WhatsApp + Cloudflare Tunnel. Vault syncs to mobile via Obsidian + Git plugin.
 
-## Pré-requisitos
+## Features
+
+- **WhatsApp interface** — send text, voice, images or PDFs, get responses
+- **Obsidian vault** — notes organized in folders, with YAML frontmatter
+- **Hybrid search** — BM25 keyword + vector semantic search with RRF fusion
+- **Pluggable AI providers** — swap LLM/STT/Embedding just by editing `.env`
+- **Auto git sync** — vault commits every 5 min, syncs to mobile via Obsidian Git
+- **Vault watcher** — re-indexes notes edited manually in Obsidian
+
+## Supported Providers
+
+| Type | Providers |
+|------|-----------|
+| **LLM** | Gemini, Groq, OpenAI, Claude, OpenRouter, NVIDIA NIM |
+| **STT** (voice) | Groq Whisper, OpenAI Whisper |
+| **Embeddings** | Gemini, OpenAI |
+
+## Prerequisites
 
 - Python 3.11+
-- Docker Desktop
-- Conta Cloudflare (para tunnel)
-- API key de pelo menos um provider de IA (Gemini recomendado para início)
+- Node.js 18+ (for Evolution API)
+- [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) (for public tunnel)
+- API key for at least one LLM provider
 
-## Setup Passo a Passo
+## Setup
 
-### 1. Clonar e instalar dependências
+### 1. Install dependencies
 
 ```bash
-git clone <seu-repo>
-cd segundo-cerebro
+git clone https://github.com/MateusR019/Obsidian_agent.git
+cd Obsidian_agent
 python -m venv .venv
-.venv\Scripts\activate
+.venv\Scripts\activate        # Windows
 pip install -r requirements.txt
 ```
 
-### 2. Configurar variáveis de ambiente
+### 2. Configure environment
 
 ```bash
 copy .env.example .env
-# Edite .env com suas chaves de API e configurações
+# Edit .env with your API keys and settings
 ```
 
-Variáveis obrigatórias no `.env`:
-- `GEMINI_API_KEY` (ou chave do provider escolhido)
-- `EVOLUTION_API_KEY`
-- `ALLOWED_NUMBERS` — seu número no formato `5511999999999`
+Mandatory variables:
+- `LLM_PROVIDER` + matching API key (e.g. `NVIDIA_API_KEY`)
+- `ALLOWED_NUMBERS` — your WhatsApp number as `5511999999999`
+- `EVOLUTION_API_KEY` — any string, used as auth token
 
-### 3. Setup inicial (vault + banco)
+### 3. Initial setup (vault + database)
 
 ```bash
 python scripts/setup_initial.py
 ```
 
-Isso cria a estrutura de pastas do vault em `./vault/` e inicializa o banco SQLite.
+Creates the vault folder structure and initializes SQLite. Edit `VAULT_FOLDERS` in the script to match your life before running.
 
-### 4. Subir tudo
+### 4. Start Evolution API (WhatsApp gateway)
 
 ```bash
-# Opção A: script Windows
-scripts\start_all.bat
+cd evolution-api
+npm install
+npm start
+```
 
-# Opção B: manual
+Or with Docker:
+```bash
 docker compose up -d
+```
+
+### 5. Connect WhatsApp
+
+1. Open http://localhost:8080
+2. Create instance `segundo-cerebro`
+3. Scan QR code with WhatsApp (**Settings → Linked Devices → Link a Device**)
+
+### 6. Start the agent
+
+```bash
 uvicorn app.main:app --reload
 ```
 
-### 5. Verificar saúde
-
-```
-GET http://localhost:8000/health
-→ {"status": "ok", "service": "segundo-cerebro"}
-```
-
-### 6. Configurar Evolution API
-
-1. Acesse http://localhost:8080
-2. Crie uma instância chamada `segundo-cerebro`
-3. Escaneie o QR code com o WhatsApp
-4. Configure o webhook apontando para `https://<seu-tunnel>/webhook/whatsapp`
-
-### 7. Cloudflare Tunnel (acesso externo)
+### 7. Open a public tunnel
 
 ```bash
 cloudflared tunnel --url http://localhost:8000
+# Copy the https://xxxx.trycloudflare.com URL
 ```
 
-Copie a URL gerada e configure como webhook na Evolution API.
+### 8. Configure webhook
 
-## Como Trocar de Provider de IA
+```bash
+curl -X POST http://localhost:8080/webhook/set/segundo-cerebro \
+  -H "Content-Type: application/json" \
+  -H "apikey: YOUR_EVOLUTION_API_KEY" \
+  -d '{"url":"https://YOUR-TUNNEL-URL/webhook/whatsapp","events":["MESSAGES_UPSERT"]}'
+```
 
-Edite apenas o `.env`:
+### 9. Verify
+
+```
+GET http://localhost:8000/health
+GET http://localhost:8000/admin   ← dashboard
+```
+
+Send a WhatsApp message and get a response!
+
+## Switching AI Provider
+
+Edit only `.env` — no code changes needed:
 
 ```env
-# Para usar Groq:
+# NVIDIA (default)
+LLM_PROVIDER=nvidia
+NVIDIA_API_KEY=your_key
+
+# Gemini
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=your_key
+
+# Groq (fast + free tier)
 LLM_PROVIDER=groq
-GROQ_API_KEY=sua_chave
+GROQ_API_KEY=your_key
 
-# Para usar OpenAI:
-LLM_PROVIDER=openai
-OPENAI_API_KEY=sua_chave
-
-# Para usar Claude:
+# Claude
 LLM_PROVIDER=claude
-ANTHROPIC_API_KEY=sua_chave
+ANTHROPIC_API_KEY=your_key
 ```
 
-Reinicie o servidor. Nenhuma mudança de código necessária.
+## Customizing the Agent
 
-## Como Customizar o Vault
+Edit files in `vault/_SYSTEM/` (created by `setup_initial.py`):
 
-Edite os arquivos em `vault/_SYSTEM/`:
+| File | Purpose |
+|------|---------|
+| `regras.md` | Agent behavior rules — when to ask vs act |
+| `glossario.md` | Your domain-specific terms |
+| `contexto_negocio.md` | Your personal/business context |
 
-- **`regras.md`** — comportamento do agente, quando perguntar vs agir
-- **`glossario.md`** — termos do seu negócio
-- **`contexto_negocio.md`** — contexto sobre suas empresas e produtos
+Changes take effect on the next message.
 
-As mudanças são aplicadas imediatamente na próxima mensagem.
-
-## Estrutura do Vault
+## Vault Structure (default)
 
 ```
-00_Inbox/           — notas não classificadas
-10_Daily/           — daily notes por ano/mês
-20_Operacao/        — EFish, SeaFishing, Marketplaces
-30_Prime_Angling/   — operação EUA
-40_Segna/           — projeto pessoal
-50_Pessoal/         — saúde, finanças, hobbies
-60_Pessoas/         — contatos
-70_Conhecimento/    — artigos, aprendizados
-80_Projetos_Ativos/ — projetos em andamento
-90_Arquivo/         — histórico
-_SYSTEM/            — configuração do agente (não editar estrutura)
+00_Inbox/       — unclassified notes
+10_Daily/       — daily notes by year/month
+20_Work/        — projects, clients, documents
+30_Personal/    — finance, health, hobbies
+40_Knowledge/   — articles, learnings
+50_People/      — contacts
+60_Archive/     — historical
+_SYSTEM/        — agent config (do not commit)
+```
+
+Customize by editing `VAULT_FOLDERS` in `scripts/setup_initial.py` before first run.
+
+## Useful Commands
+
+```bash
+# Test configured providers
+python scripts/test_providers.py
+
+# Re-index vault after bulk import
+python scripts/reindex_all.py
+
+# Start everything (Windows)
+scripts\start_all.bat
 ```
 
 ## Troubleshooting
 
-**`sqlite-vec` não carrega:**
-```bash
-pip install sqlite-vec --force-reinstall
-```
+**Agent not responding on WhatsApp:**
+- Check your number is in `ALLOWED_NUMBERS` (format: `5511999999999`)
+- Verify webhook URL in Evolution API points to your tunnel
+- Check server logs for each incoming message
 
-**Evolution API não conecta:**
-- Verifique se o Docker está rodando: `docker ps`
-- Logs: `docker compose logs -f`
+**Vault not syncing to mobile:**
+- Set `VAULT_GIT_REMOTE` in `.env` with your repo URL
+- Install Obsidian Git plugin on mobile
+- Configure Git credentials on the PC
 
-**Agente não responde no WhatsApp:**
-- Confirme que o número está em `ALLOWED_NUMBERS`
-- Verifique o webhook na Evolution API (deve apontar para o tunnel)
-- Logs do servidor mostram cada mensagem recebida
-
-**Vault não sincroniza no celular:**
-- Configure `VAULT_GIT_REMOTE` com URL do seu repo
-- Instale o plugin Git no Obsidian mobile
-- Configure credenciais Git no PC
-
-## Desenvolvimento
-
-```bash
-# Testar providers configurados
-python scripts/test_providers.py
-
-# Reindexar vault após bulk import
-python scripts/reindex_all.py
-
-# Rodar testes
-pytest tests/
-```
+**No embedding (vector search disabled):**
+- Set `EMBEDDING_PROVIDER=gemini` (or openai) and add the API key
+- BM25 keyword search still works without embeddings

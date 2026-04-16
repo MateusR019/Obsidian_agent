@@ -1,8 +1,12 @@
-"""Cria estrutura inicial do vault Obsidian e inicializa o banco."""
+"""
+Cria estrutura inicial do vault Obsidian e inicializa o banco.
+
+Edite VAULT_FOLDERS abaixo para adaptar à sua realidade antes de rodar.
+"""
 import sys
+from datetime import date
 from pathlib import Path
 
-# Permite rodar de qualquer lugar
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -12,232 +16,85 @@ from app.utils.logger import get_logger
 
 logger = get_logger("setup")
 
+# ─── Personalize aqui ────────────────────────────────────────────────────────
+# Estrutura de pastas do seu vault. Adicione ou remova conforme sua necessidade.
 VAULT_FOLDERS = [
     "00_Inbox",
-    "10_Daily/2026/04",
-    "20_Operacao/EFish/Fornecedores",
-    "20_Operacao/EFish/Produtos",
-    "20_Operacao/EFish/Custos",
-    "20_Operacao/EFish/Listagens_ML",
-    "20_Operacao/EFish/Notas_Fiscais",
-    "20_Operacao/EFish/Documentos",
-    "20_Operacao/SeaFishing/Fornecedores",
-    "20_Operacao/SeaFishing/Produtos",
-    "20_Operacao/SeaFishing/Custos",
-    "20_Operacao/SeaFishing/Listagens_ML",
-    "20_Operacao/SeaFishing/Notas_Fiscais",
-    "20_Operacao/SeaFishing/Documentos",
-    "20_Operacao/Marketplaces",
-    "30_Prime_Angling/Logistica_3PL",
-    "30_Prime_Angling/Produtos_US",
-    "30_Prime_Angling/Marketing",
-    "30_Prime_Angling/Documentos",
-    "40_Segna/Clientes",
-    "40_Segna/Projetos",
-    "40_Segna/Documentos",
-    "50_Pessoal/Saude",
-    "50_Pessoal/Financeiro",
-    "50_Pessoal/Casa_Horta",
-    "50_Pessoal/Hobbies",
-    "50_Pessoal/Estudos",
-    "50_Pessoal/Diario",
-    "60_Pessoas",
-    "70_Conhecimento",
-    "80_Projetos_Ativos",
-    "90_Arquivo",
+    f"10_Daily/{date.today().year}/{date.today().month:02d}",
+    "20_Work/Projects",
+    "20_Work/Clients",
+    "20_Work/Documents",
+    "30_Personal/Finance",
+    "30_Personal/Health",
+    "30_Personal/Hobbies",
+    "30_Personal/Journal",
+    "40_Knowledge",
+    "50_People",
+    "60_Archive",
     "_SYSTEM/templates",
 ]
+# ─────────────────────────────────────────────────────────────────────────────
 
 REGRAS_MD = """\
-# Regras do Segundo Cérebro
+# Agent Rules
 
-## Identidade
-Você é o Segundo Cérebro do Mateus — assistente pessoal e profissional que organiza
-conhecimento no vault Obsidian e responde via WhatsApp.
+## Identity
+You are the user's Second Brain — a personal assistant that organizes
+knowledge in an Obsidian vault and responds via WhatsApp.
 
-## Tom e Comunicação
-- PT-BR informal e direto, como o Mateus escreve
-- Seja conciso; evite textos longos se não pedido
-- Confirme ações importantes antes de executar ("Vou criar a nota X, pode ser?")
+## Tone & Communication
+- Be concise and direct
+- Confirm before performing irreversible actions
+- Ask when uncertain about where to file new content
 
-## Quando Agir vs Quando Perguntar
-- **Agir direto**: criar nota de produto, registrar custo, fazer daily note, buscar info
-- **Perguntar primeiro**: deletar nota, alterar dado financeiro crítico, ação irreversível
-- **Nunca assumir**: pasta correta para novo tipo de conteúdo → perguntar se incerto
+## When to Act vs When to Ask
+- **Act directly**: create note, log cost, search info, daily note
+- **Ask first**: delete note, overwrite critical data
+- **Never assume**: if unsure about the right folder, ask
 
-## Pastas Padrão
-- Produtos novos → `20_Operacao/<marca>/Produtos/`
-- Fornecedores → `20_Operacao/<marca>/Fornecedores/`
-- Custos/lotes → `20_Operacao/<marca>/Custos/`
-- Notas fiscais → `20_Operacao/<marca>/Notas_Fiscais/`
-- Daily → `10_Daily/<ano>/<mes>/`
-- Inbox (não classificado) → `00_Inbox/`
+## Default Folders
+- New inbox items → `00_Inbox/`
+- Daily notes → `10_Daily/<year>/<month>/`
+- Work files → `20_Work/`
+- Personal → `30_Personal/`
 
-## Estrutura de Notas
-- Sempre usar frontmatter YAML com tipo, area, criado, atualizado, tags
-- Títulos em PascalCase sem espaços para nomes de arquivo
-- Usar templates da pasta `_SYSTEM/templates/` quando disponível
+## Note Structure
+- Always use YAML frontmatter: tipo, area, criado, atualizado, tags
+- Use PascalCase filenames without spaces
+- Use templates from `_SYSTEM/templates/` when available
 """
 
 GLOSSARIO_MD = """\
-# Glossário de Jargões
+# Glossary
 
-## Fiscal / Tributário
-- **DIFAL**: Diferencial de Alíquota — imposto estadual na venda interestadual B2C
-- **ICMS**: Imposto sobre Circulação de Mercadorias e Serviços
-- **DAS**: Documento de Arrecadação do Simples Nacional
-- **Simples Nacional**: regime tributário simplificado para MPE
-- **GNRE**: Guia Nacional de Recolhimento de Tributos Estaduais
+Add your domain-specific terms here so the agent understands your context.
 
-## E-commerce / Operacional
-- **GMV**: Gross Merchandise Value — volume bruto de vendas
-- **ML**: Mercado Livre
-- **Divisor 0.59**: fator de markup = 1 - 0.17 (margem) - 0.14 (taxa ML) - 0.10 (impostos)
-- **Rateio de frete**: distribuição proporcional do frete entre itens de um pedido
-- **Landed cost**: custo total do produto incluindo frete, impostos, desembaraço
-- **3PL**: Third Party Logistics — operador logístico terceirizado
-
-## Marcas
-- **EFish**: e-commerce nacional de pesca e náutica
-- **Sea Fishing Brasil**: marca nacional (motores, caiaques, equipamentos de pesca)
-- **Prime Angling**: expansão nos EUA
-- **Segna**: projeto pessoal do Mateus
-
-## Fornecedores / Produtos
-- **Mercury / Hidea**: fabricantes de motores de popa
+## Example
+- **Term**: Definition
+- **Acronym**: What it stands for
 """
 
 CONTEXTO_NEGOCIO_MD = """\
-# Contexto do Negócio
+# Business / Personal Context
 
-## Sobre o Mateus
-Mateus trabalha com e-commerce no Brasil e tem projeto de expansão nos EUA.
-Opera as marcas EFish, Sea Fishing Brasil e está desenvolvendo a Prime Angling (US)
-e o projeto pessoal Segna.
+Describe yourself and your context here so the agent can serve you better.
 
-## Produtos Principais
-- Motores de popa Mercury e Hidea
-- Caiaques
-- Equipamentos de pesca em geral
+## About Me
+- Role / occupation:
+- Main areas of focus:
+- Tools I use:
 
-## Stack de Tecnologia
-- Docker, Python, Next.js, Supabase
-- Vault Obsidian com sync via Git para mobile
+## Goals
+- What I want to use this Second Brain for:
 
-## Canais de Venda
-- Mercado Livre (principal)
-- Outros marketplaces brasileiros
-- Amazon US (Prime Angling, expansão)
-
-## Desafios Frequentes
-- Precificação considerando DIFAL, frete, impostos, taxa de marketplace
-- Gestão de múltiplas marcas com SKUs diferentes
-- Controle de lotes, landed cost e margens por produto
-"""
-
-TEMPLATE_PRODUTO = """\
----
-tipo: produto
-area:
-criado: {{data}}
-atualizado: {{data}}
-fonte:
-tags: []
-status: ativo
-links_relacionados: []
----
-
-# {{titulo}}
-
-## Identificação
-- **SKU**:
-- **EAN / Código de Barras**:
-- **Fornecedor**:
-- **Marca / Modelo**:
-
-## Custos (último lote)
-- **Custo unitário (R$)**:
-- **Frete unitário**:
-- **Landed cost**:
-- **Data do lote**:
-
-## Precificação
-- **Preço ML**:
-- **Margem estimada**:
-- **Divisor aplicado**: 0.59
-
-## Observações
-"""
-
-TEMPLATE_FORNECEDOR = """\
----
-tipo: fornecedor
-area:
-criado: {{data}}
-atualizado: {{data}}
-fonte:
-tags: []
-status: ativo
-links_relacionados: []
----
-
-# {{titulo}}
-
-## Dados
-- **Razão Social**:
-- **CNPJ**:
-- **Contato**:
-- **Email**:
-- **WhatsApp / Tel**:
-
-## Condições Comerciais
-- **Prazo de pagamento**:
-- **Frete por conta de**:
-- **Desconto volume**:
-
-## Produtos Fornecidos
--
-
-## Observações
-"""
-
-TEMPLATE_LOTE_CUSTO = """\
----
-tipo: lote_custo
-area:
-criado: {{data}}
-atualizado: {{data}}
-fonte:
-tags: []
-status: ativo
-links_relacionados: []
----
-
-# Lote — {{titulo}}
-
-## Dados do Lote
-- **Data de compra**:
-- **NF**:
-- **Fornecedor**:
-- **Qtd comprada**:
-
-## Custos
-| Item | Valor (R$) |
-|------|-----------|
-| Custo produto | |
-| Frete | |
-| DIFAL/ICMS | |
-| Outros | |
-| **Landed cost total** | |
-| **Custo unitário** | |
-
-## Observações
+## Notes
+- Any other context the agent should know:
 """
 
 TEMPLATE_DAILY = """\
 ---
 tipo: daily
-area: pessoal
+area: personal
 criado: {{data}}
 atualizado: {{data}}
 tags: [daily]
@@ -245,38 +102,38 @@ tags: [daily]
 
 # Daily — {{data}}
 
-## Prioridades do Dia
+## Priorities
 - [ ]
 - [ ]
 
-## Reuniões / Compromissos
+## Meetings / Events
 -
 
-## Notas Rápidas
+## Notes
 """
 
-TEMPLATE_PESSOA = """\
+TEMPLATE_NOTE = """\
 ---
-tipo: pessoa
+tipo: note
 area:
 criado: {{data}}
 atualizado: {{data}}
 tags: []
-status: ativo
+status: active
 links_relacionados: []
 ---
 
 # {{titulo}}
 
-## Dados
-- **Empresa / Papel**:
-- **Email**:
-- **WhatsApp**:
+## Summary
 
-## Contexto
+## Details
+
+## Next Steps
+- [ ]
 """
 
-TEMPLATE_PROJETO = """\
+TEMPLATE_PROJECT = """\
 ---
 tipo: projeto
 area:
@@ -289,11 +146,32 @@ links_relacionados: []
 
 # {{titulo}}
 
-## Objetivo
-## Contexto
-## Próximos Passos
+## Goal
+## Context
+## Next Steps
 - [ ]
-## Histórico
+## Log
+"""
+
+TEMPLATE_PERSON = """\
+---
+tipo: pessoa
+area:
+criado: {{data}}
+atualizado: {{data}}
+tags: []
+status: ativo
+links_relacionados: []
+---
+
+# {{titulo}}
+
+## Details
+- **Company / Role**:
+- **Email**:
+- **Phone / WhatsApp**:
+
+## Context
 """
 
 TEMPLATE_INBOX = """\
@@ -312,13 +190,11 @@ status: para_classificar
 """
 
 TEMPLATES = {
-    "_produto.md": TEMPLATE_PRODUTO,
-    "_fornecedor.md": TEMPLATE_FORNECEDOR,
-    "_lote_custo.md": TEMPLATE_LOTE_CUSTO,
     "_daily.md": TEMPLATE_DAILY,
-    "_pessoa.md": TEMPLATE_PESSOA,
-    "_projeto.md": TEMPLATE_PROJETO,
-    "_nota_inbox.md": TEMPLATE_INBOX,
+    "_note.md": TEMPLATE_NOTE,
+    "_project.md": TEMPLATE_PROJECT,
+    "_person.md": TEMPLATE_PERSON,
+    "_inbox.md": TEMPLATE_INBOX,
 }
 
 
